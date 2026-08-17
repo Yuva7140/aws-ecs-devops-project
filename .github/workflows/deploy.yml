@@ -12,6 +12,7 @@ permissions:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: devops-demo-app
+  ECR_REGISTRY: 041073296018.dkr.ecr.us-east-1.amazonaws.com
 
 jobs:
   build:
@@ -41,12 +42,12 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t devops-demo-app .
+          docker build -t $ECR_REPOSITORY:${GITHUB_SHA} .
 
       - name: Tag Docker image
         run: |
-          docker tag devops-demo-app:latest 041073296018.dkr.ecr.us-east-1.amazonaws.com/devops-demo-app:latest
+          docker tag $ECR_REPOSITORY:${GITHUB_SHA} $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}
 
       - name: Push Docker image
         run: |
-          docker push 041073296018.dkr.ecr.us-east-1.amazonaws.com/devops-demo-app:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}
