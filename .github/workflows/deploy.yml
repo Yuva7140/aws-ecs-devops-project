@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Deploy to ECS
 
 on:
   push:
@@ -13,10 +13,13 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: devops-demo-app
   ECR_REGISTRY: 041073296018.dkr.ecr.us-east-1.amazonaws.com
+  ECS_CLUSTER: devops-demo-cluster
+  ECS_SERVICE: devops-demo-service
+  ECS_TASK_DEFINITION: task-definition.json
 
 jobs:
-  build:
-    name: Build Docker Image
+  build-and-deploy:
+    name: Build and Deploy to ECS
     runs-on: ubuntu-latest
 
     steps:
@@ -35,7 +38,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::041073296018:role/GitHub-Role
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -46,8 +49,32 @@ jobs:
 
       - name: Tag Docker image
         run: |
-          docker tag $ECR_REPOSITORY:${GITHUB_SHA} $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}
+          docker tag $ECR_REPOSITORY:${GITHUB_SHA} \
+            $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}
 
       - name: Push Docker image
         run: |
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}
+
+      - name: Update task definition image
+        run: |
+          sed -i "s|PLACEHOLDER|${GITHUB_SHA}|g" $ECS_TASK_DEFINITION
+
+      - name: Register new ECS task definition
+        run: |
+          aws ecs register-task-definition \
+            --cli-input-json file://$ECS_TASK_DEFINITION
+
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --task-definition devops-demo-task \
+            --force-new-deployment
+
+      - name: Wait for ECS deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE
